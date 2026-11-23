@@ -1,0 +1,6 @@
+name: mag_export_pyrodigal
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - pyrodigal>=3.0

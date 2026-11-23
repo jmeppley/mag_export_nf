@@ -1,0 +1,7 @@
+name: mag_export_eggnog
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - eggnog-mapper>=2.1.12
+  - python>=3.9,<3.12   # eggnog-mapper imports distutils (removed in 3.12)

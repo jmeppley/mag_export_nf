@@ -1,0 +1,21 @@
+# Synthetic test: run from the repo root with
+#   nextflow run main.nf -params-file tests/params.test.yaml
+# TARA_SAMEA2623673_METAG_DCIOEMAK.fa and MOTU40_035700.fa are deliberately missing.
+mag_dir: tests/data/mags
+on_missing: warn
+tables:
+  - table: tests/data/decreasing.tsv
+    header: false
+    column: 1
+    dest: tests/results/decreasing
+    annotate: true
+  - table: tests/data/increasing.tsv
+    header: false
+    column: 1
+    dest: tests/results/increasing
+    annotate: true
+  - table: tests/data/maaslin3.tsv
+    header: true
+    column: feature
+    dest: tests/results/maaslin3
+    annotate: false

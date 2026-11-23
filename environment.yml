@@ -1,0 +1,8 @@
+# Env for running the workflow itself: mamba env create -f environment.yml
+name: nextflow
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - nextflow>=24.10
+  - openjdk>=17,<22

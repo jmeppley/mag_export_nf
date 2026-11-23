@@ -1,0 +1,36 @@
+# Example params file for mag_export_nf
+# Run with:  nextflow run main.nf -params-file params.yaml
+
+# Folder holding the MAG nucleotide fasta files
+mag_dir: /mnt/delong/scratch2/for_John
+
+# Suffix appended to names from the table when they lack it (e.g. ".fa"); "" = use names as-is
+mag_ext: ""
+
+# What to do when a listed MAG has no fasta in mag_dir: warn | fail
+# Either way, missing names are written to <dest>/missing_mags.txt
+on_missing: warn
+
+# One entry per table
+#   table:    path to the table (tab-separated unless `sep` is given)
+#   header:   true if the first line is a header
+#   column:   column name (header: true) or 1-based column index (header: false)
+#   dest:     destination folder for copied MAGs (and annotations)
+#   annotate: predict and annotate genes for these MAGs
+#   sep:      optional field separator (default: tab)
+tables:
+  - table: 795_decreasing_prev.tsv
+    header: false
+    column: 1
+    dest: results/decreasing_795
+    annotate: true
+  - table: 80_increasing_prev.tsv
+    header: false
+    column: 1
+    dest: results/increasing_80
+    annotate: true
+  - table: combined_maaslin3_results.marine_MAGs.taxon_annotated.2.tsv
+    header: true
+    column: feature
+    dest: results/maaslin3_all
+    annotate: false
