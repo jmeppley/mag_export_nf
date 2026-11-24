@@ -194,23 +194,24 @@ process COMBINE_TABLES {
     publishDir path: { meta.dest }, mode: 'copy'
 
     input:
-    tuple val(meta), path(tables, stageAs: 'tables/*')
+    tuple val(meta), val(mags), path(tables, stageAs: 'tables/*')
 
     output:
     tuple val(meta), path('annotations.tsv')
 
     script:
+    // mags[i] is the fasta name (with extension) for tables[i]; sort by name
+    def tlist = tables instanceof List ? tables : [tables]
+    def pairs = [mags, tlist].transpose().sort { it[0] }
+    def rows = pairs.collect { m, t -> "add_rows '${m}' '${t}'" }.join('\n    ')
     """
     # one table for all MAGs in this dest, with a leading "mag" column
-    first=1
-    for f in \$(ls tables/*.annotations.tsv | sort); do
-        m=\$(basename "\$f" .annotations.tsv)
-        if [ \$first = 1 ]; then
-            head -n 1 "\$f" | awk '{print "mag\t" \$0}'
-            first=0
-        fi
-        tail -n +2 "\$f" | awk -v m="\$m" '{print m "\t" \$0}'
-    done > annotations.tsv
+    set -o pipefail
+    add_rows() { tail -n +2 "\$2" | awk -v m="\$1" '{print m "\\t" \$0}'; }
+    {
+    head -n 1 '${pairs[0][1]}' | awk '{print "mag\\t" \$0}'
+    ${rows}
+    } > annotations.tsv
     """
 }
 
@@ -308,12 +309,12 @@ workflow {
 
         per_table_ch = annot_members
             .combine(annots_ch.join(table_ch), by: 0)
-            .map { mag, meta, faa, ffn, gff, ann, tsv -> [meta, [faa, ffn, gff, ann, tsv]] }
+            .map { mag, meta, faa, ffn, gff, ann, tsv -> [meta, [mag, faa, ffn, gff, ann, tsv]] }
             .groupTuple()
 
-        COPY_ANNOTATIONS(per_table_ch.map { meta, files -> [meta, files.flatten()] })
+        COPY_ANNOTATIONS(per_table_ch.map { meta, recs -> [meta, recs.collect { it[1..5] }.flatten()] })
 
-        // dest/annotations.tsv: all of this table's MAGs in one file
-        COMBINE_TABLES(per_table_ch.map { meta, files -> [meta, files.collect { it[4] }] })
+        // dest/annotations.tsv: all of this table's MAGs in one file, "mag" = fasta name
+        COMBINE_TABLES(per_table_ch.map { meta, recs -> [meta, recs.collect { it[0] }, recs.collect { it[5] }] })
     }
 }

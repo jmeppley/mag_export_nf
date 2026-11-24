@@ -119,8 +119,8 @@ have empty annotation columns; eggNOG-mapper's `-` is written as empty):
 | `COG_category`, `eggNOG_OGs`, `Description`, `Preferred_name`, `PFAMs` | emapper, unchanged |
 
 `dest/annotations.tsv` concatenates these tables for every MAG in that table's
-`dest`, with an extra leading `mag` column (the MAG id, i.e. the fasta name without
-its extension). MAGs are sorted by id.
+`dest`, with an extra leading `mag` column holding the MAG's fasta file name
+(e.g. `GCA_036338635.fa`, as listed in the input table). MAGs are sorted by name.
 
 Intermediate files are in `work/`; delete it after a successful run.
 
