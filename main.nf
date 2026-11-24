@@ -82,6 +82,8 @@ process PYRODIGAL {
     tag { mag_id }
     label 'small'
     conda "${moduleDir}/envs/pyrodigal.yml"
+    // CPUs come in via an env var so changing them keeps -resume cache hits
+    beforeScript { "export TASK_CPUS=${task.cpus}" }
 
     input:
     tuple val(mag), path(fasta)
@@ -93,7 +95,7 @@ process PYRODIGAL {
     mag_id = fasta.baseName
     """
     run_pyrodigal() {
-        pyrodigal -i ${fasta} -p \$1 -j ${task.cpus} \\
+        pyrodigal -i ${fasta} -p \$1 -j \$TASK_CPUS \\
             -a ${mag_id}.faa -d ${mag_id}.ffn -f gff -o ${mag_id}.gff
     }
     # single mode needs >= 20 kb of sequence to train; fall back to meta mode
@@ -114,12 +116,14 @@ process PYRODIGAL {
 }
 
 process EGGNOG_MAPPER {
-    tag { "batch of ${faas instanceof List ? faas.size() : 1}" }
+    tag { "batch ${batch_id} (${faas instanceof List ? faas.size() : 1} MAGs)" }
     label 'big'
     conda "${moduleDir}/envs/eggnog.yml"
+    // CPUs come in via an env var so changing them keeps -resume cache hits
+    beforeScript { "export TASK_CPUS=${task.cpus}" }
 
     input:
-    path faas, stageAs: 'faa/*'
+    tuple val(batch_id), path(faas, stageAs: 'faa/*')
     path db
 
     output:
@@ -135,7 +139,7 @@ process EGGNOG_MAPPER {
 
     mkdir -p tmp
     emapper.py -i batch.faa --itype proteins -m diamond \\
-        --data_dir ${db} --cpu ${task.cpus} --temp_dir tmp \\
+        --data_dir ${db} --cpu \$TASK_CPUS --temp_dir tmp \\
         -o batch --output_dir . --override ${params.emapper_args}
 
     split_emapper.py batch.emapper.annotations --outdir split \\
@@ -285,14 +289,29 @@ workflow {
             .filter { meta, mags -> meta.annotate }
             .flatMap { meta, mags -> mags.collect { [it, meta] } }
 
-        // each MAG once
-        genes_ch = PYRODIGAL(
-            annot_members.map { mag, meta -> mag }.unique().map { [it, magDir.resolve(it)] }
-        )
+        // Each MAG once, assigned to a fixed eggNOG batch by sorted name, so a
+        // batch holds the same MAGs on every run and -resume can reuse it.
+        // [mag name, batch number, batch size]
+        def batchSize = params.eggnog_batch_size as int
+        batches_ch = annot_members
+            .map { mag, meta -> mag }
+            .unique()
+            .toSortedList()
+            .flatMap { mags ->
+                mags.collate(batchSize).withIndex().collectMany { grp, i ->
+                    grp.collect { [it, i + 1, grp.size()] }
+                }
+            }
 
+        genes_ch = PYRODIGAL(batches_ch.map { mag, b, n -> [mag, magDir.resolve(mag)] })
+
+        // a batch starts as soon as all of its MAGs have genes
         emapper_ch = EGGNOG_MAPPER(
-            genes_ch.map { mag, faa, ffn, gff -> faa }
-                .buffer(size: params.eggnog_batch_size as int, remainder: true),
+            genes_ch
+                .join(batches_ch)
+                .map { mag, faa, ffn, gff, b, n -> [groupKey(b, n), faa] }
+                .groupTuple()
+                .map { b, faas -> [b.getGroupTarget(), faas.sort { it.name }] },
             db_ch
         )
             .flatten()
@@ -311,6 +330,8 @@ workflow {
             .combine(annots_ch.join(table_ch), by: 0)
             .map { mag, meta, faa, ffn, gff, ann, tsv -> [meta, [mag, faa, ffn, gff, ann, tsv]] }
             .groupTuple()
+            // fixed order, so the downstream tasks' cache keys don't depend on finish order
+            .map { meta, recs -> [meta, recs.sort { it[0] }] }
 
         COPY_ANNOTATIONS(per_table_ch.map { meta, recs -> [meta, recs.collect { it[1..5] }.flatten()] })
 

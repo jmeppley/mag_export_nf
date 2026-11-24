@@ -122,6 +122,16 @@ have empty annotation columns; eggNOG-mapper's `-` is written as empty):
 `dest`, with an extra leading `mag` column holding the MAG's fasta file name
 (e.g. `GCA_036338635.fa`, as listed in the input table). MAGs are sorted by name.
 
+### Stopping and resuming
+
+You can stop a run (Ctrl-C) and restart it with the same command plus `-resume`.
+Finished tasks are reused; only tasks that were interrupted run again. You can lower
+`executor.cpus` or `--emapper_cpus` when resuming without losing finished work:
+CPU counts are passed to the tools through an environment variable, so they are not
+part of a task's cache key, and MAGs are assigned to eggNOG-mapper batches by sorted
+name, so each batch has the same MAGs on every run. Keep `eggnog_batch_size` the
+same, though: changing it regroups the MAGs and reruns eggNOG-mapper.
+
 Intermediate files are in `work/`; delete it after a successful run.
 
 ## Test
