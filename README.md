@@ -96,6 +96,7 @@ dest/
 ├── mags.txt                 # MAG names found in mag_dir
 ├── missing_mags.txt         # names in the table but not in mag_dir
 ├── mags/                    # copied fasta files
+├── annotations.tsv          # only if annotate: true; all MAGs' gene tables in one file
 └── annotation/              # only if annotate: true
     └── <mag>/
         ├── <mag>.faa        # proteins (pyrodigal)
@@ -116,6 +117,10 @@ have empty annotation columns; eggNOG-mapper's `-` is written as empty):
 | `domain` | Bacteria / Archaea / Eukaryota / Viruses entry of `eggNOG_OGs` |
 | `max_annot_lvl` | taxon name of emapper's `max_annot_lvl` (taxid prefix removed) |
 | `COG_category`, `eggNOG_OGs`, `Description`, `Preferred_name`, `PFAMs` | emapper, unchanged |
+
+`dest/annotations.tsv` concatenates these tables for every MAG in that table's
+`dest`, with an extra leading `mag` column (the MAG id, i.e. the fasta name without
+its extension). MAGs are sorted by id.
 
 Intermediate files are in `work/`; delete it after a successful run.
 

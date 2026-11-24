@@ -188,6 +188,32 @@ process COPY_ANNOTATIONS {
     """
 }
 
+process COMBINE_TABLES {
+    tag { meta.id }
+    label 'small'
+    publishDir path: { meta.dest }, mode: 'copy'
+
+    input:
+    tuple val(meta), path(tables, stageAs: 'tables/*')
+
+    output:
+    tuple val(meta), path('annotations.tsv')
+
+    script:
+    """
+    # one table for all MAGs in this dest, with a leading "mag" column
+    first=1
+    for f in \$(ls tables/*.annotations.tsv | sort); do
+        m=\$(basename "\$f" .annotations.tsv)
+        if [ \$first = 1 ]; then
+            head -n 1 "\$f" | awk '{print "mag\t" \$0}'
+            first=0
+        fi
+        tail -n +2 "\$f" | awk -v m="\$m" '{print m "\t" \$0}'
+    done > annotations.tsv
+    """
+}
+
 /* ---------- helpers ---------- */
 
 def parseTables(tables, magDir) {
@@ -280,12 +306,14 @@ workflow {
         // per-gene summary table: [mag name, tsv]
         table_ch = ANNOTATION_TABLE(annots_ch.map { mag, faa, ffn, gff, ann -> [mag, gff, ann] })
 
-        COPY_ANNOTATIONS(
-            annot_members
-                .combine(annots_ch.join(table_ch), by: 0)
-                .map { mag, meta, faa, ffn, gff, ann, tsv -> [meta, [faa, ffn, gff, ann, tsv]] }
-                .groupTuple()
-                .map { meta, files -> [meta, files.flatten()] }
-        )
+        per_table_ch = annot_members
+            .combine(annots_ch.join(table_ch), by: 0)
+            .map { mag, meta, faa, ffn, gff, ann, tsv -> [meta, [faa, ffn, gff, ann, tsv]] }
+            .groupTuple()
+
+        COPY_ANNOTATIONS(per_table_ch.map { meta, files -> [meta, files.flatten()] })
+
+        // dest/annotations.tsv: all of this table's MAGs in one file
+        COMBINE_TABLES(per_table_ch.map { meta, files -> [meta, files.collect { it[4] }] })
     }
 }
