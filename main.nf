@@ -149,12 +149,30 @@ process EGGNOG_MAPPER {
     """
 }
 
+process ANNOTATION_TABLE {
+    tag { mag_id }
+    label 'small'
+    conda "${moduleDir}/envs/python.yml"
+
+    input:
+    tuple val(mag), path(gff), path(annotations)
+
+    output:
+    tuple val(mag), path("${mag_id}.annotations.tsv")
+
+    script:
+    mag_id = gff.baseName
+    """
+    annotation_table.py ${gff} ${annotations} -o ${mag_id}.annotations.tsv
+    """
+}
+
 process COPY_ANNOTATIONS {
     tag { meta.id }
     label 'small'
     publishDir path: { "${meta.dest}/annotation" }, mode: 'copy', saveAs: { fn ->
         def name = fn.tokenize('/')[-1]
-        def id = name.replaceAll(/\.(faa|ffn|gff|emapper\.annotations)$/, '')
+        def id = name.replaceAll(/\.(faa|ffn|gff|emapper\.annotations|annotations\.tsv)$/, '')
         "${id}/${name}"
     }
 
@@ -259,10 +277,13 @@ workflow {
             .join(emapper_ch)
             .map { id, mag, faa, ffn, gff, ann -> [mag, faa, ffn, gff, ann] }
 
+        // per-gene summary table: [mag name, tsv]
+        table_ch = ANNOTATION_TABLE(annots_ch.map { mag, faa, ffn, gff, ann -> [mag, gff, ann] })
+
         COPY_ANNOTATIONS(
             annot_members
-                .combine(annots_ch, by: 0)
-                .map { mag, meta, faa, ffn, gff, ann -> [meta, [faa, ffn, gff, ann]] }
+                .combine(annots_ch.join(table_ch), by: 0)
+                .map { mag, meta, faa, ffn, gff, ann, tsv -> [meta, [faa, ffn, gff, ann, tsv]] }
                 .groupTuple()
                 .map { meta, files -> [meta, files.flatten()] }
         )

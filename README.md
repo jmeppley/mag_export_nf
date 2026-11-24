@@ -101,8 +101,21 @@ dest/
         ├── <mag>.faa        # proteins (pyrodigal)
         ├── <mag>.ffn        # gene nucleotide sequences
         ├── <mag>.gff        # gene coordinates
-        └── <mag>.emapper.annotations
+        ├── <mag>.emapper.annotations
+        └── <mag>.annotations.tsv   # one row per gene; see below
 ```
+
+`<mag>.annotations.tsv` has one row per predicted gene (genes without an eggNOG hit
+have empty annotation columns; eggNOG-mapper's `-` is written as empty):
+
+| column | source |
+|---|---|
+| `gene_id` | `{contig_id}_{gene_no}`, same as the protein IDs in `<mag>.faa` |
+| `start`, `end`, `strand` | GFF |
+| `OG` | first entry of `eggNOG_OGs` (COG/arCOG/KOG or 5-character eggNOG family) |
+| `domain` | Bacteria / Archaea / Eukaryota / Viruses entry of `eggNOG_OGs` |
+| `max_annot_lvl` | taxon name of emapper's `max_annot_lvl` (taxid prefix removed) |
+| `COG_category`, `eggNOG_OGs`, `Description`, `Preferred_name`, `PFAMs` | emapper, unchanged |
 
 Intermediate files are in `work/`; delete it after a successful run.
 
